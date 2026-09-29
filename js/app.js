@@ -1,11 +1,13 @@
-import { POSES, poseById, poseSVG, LIMBS, poseCat, SELFIE_REC, SELFIE_TIPS } from './poses.js';
-import { SCENES, sceneFromLabels, sceneFromLight } from './scenes.js';
-import { PRESETS, applyPreset } from './color.js';
-import { loadVision, detectPose, classify } from './vision.js';
-import { placeGhost, toPerson, matchScore, coachMessage, headTop } from './coach.js';
-import { askPhotographer } from './ai.js';
+import { POSES, poseById, poseSVG, LIMBS, poseCat, SELFIE_REC, SELFIE_TIPS } from './poses.js?v=3';
+import { SCENES, sceneFromLabels, sceneFromLight } from './scenes.js?v=3';
+import { PRESETS, applyPreset } from './color.js?v=3';
+import { loadVision, detectPose, classify } from './vision.js?v=3';
+import { placeGhost, toPerson, matchScore, coachMessage, headTop } from './coach.js?v=3';
+import { askPhotographer } from './ai.js?v=3';
 
+export const APP_VERSION = 3; // 수정 배포 시 index.html·import의 ?v= 와 함께 올리기
 const $ = (s) => document.querySelector(s);
+document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 const video = $('#video'), overlay = $('#overlay'), octx = overlay.getContext('2d');
 const stage = $('#stage');
 window.__app = { get state() { return state; } }; // 디버그용

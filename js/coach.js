@@ -1,5 +1,5 @@
 // 구도 코칭: 실루엣 배치, 포즈 일치도 점수, 실시간 안내 메시지
-import { MAP } from './vision.js';
+import { MAP } from './vision.js?v=3';
 
 const PAIRS = [['ey1', 'ey2', [2, 5]], ['ea1', 'ea2', [7, 8]], ['ls', 'rs', MAP.s], ['le', 're', MAP.e], ['lw', 'rw', MAP.w], ['lh', 'rh', MAP.hp], ['lk', 'rk', MAP.k], ['la', 'ra', MAP.a]];
 const COMP_X = { left: 1 / 3, center: 0.5, right: 2 / 3 };

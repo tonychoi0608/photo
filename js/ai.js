@@ -1,7 +1,7 @@
 // (선택) GPT-5.4 포토그래퍼 분석 — 사용자가 설정에 OpenAI 키를 넣었을 때만 사용
-import { POSES } from './poses.js';
-import { SCENES } from './scenes.js';
-import { PRESETS } from './color.js';
+import { POSES } from './poses.js?v=3';
+import { SCENES } from './scenes.js?v=3';
+import { PRESETS } from './color.js?v=3';
 
 export async function askPhotographer(apiKey, dataUrl, { mode, people }) {
   const poseList = POSES.map((p) => `${p.id}(${p.name}, ${p.people}인, ${{ full: '전신', half: '상반신', selfie: '셀카' }[p.frame]})`).join(', ');

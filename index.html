@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
 </head>
 <body>
   <div id="app">
@@ -144,6 +144,7 @@
         <h3>🤖 GPT-5.4 포토그래퍼 (선택)</h3>
         <p class="hint">OpenAI API 키를 넣으면 가이드에서 “AI 포토그래퍼 분석”을 쓸 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI로만 전송돼요. 개인용으로만 쓰세요.</p>
         <input id="stKey" type="password" placeholder="sk-..." autocomplete="off" />
+        <p class="hint" style="margin-top:24px">앱 버전 <b id="appVersion"></b> — 업데이트 후 이 숫자가 안 바뀌면 새로고침 해주세요</p>
       </div>
     </div>
 
@@ -151,6 +152,6 @@
     <div id="toast" hidden></div>
     <a id="dl" hidden></a>
   </div>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>
