@@ -1,8 +1,8 @@
-import { POSES, poseById, poseSVG, LIMBS } from './poses.js';
+import { POSES, poseById, poseSVG, LIMBS, poseCat, SELFIE_REC, SELFIE_TIPS } from './poses.js';
 import { SCENES, sceneFromLabels, sceneFromLight } from './scenes.js';
 import { PRESETS, applyPreset } from './color.js';
 import { loadVision, detectPose, classify } from './vision.js';
-import { placeGhost, toPerson, matchScore, coachMessage } from './coach.js';
+import { placeGhost, toPerson, matchScore, coachMessage, headTop } from './coach.js';
 import { askPhotographer } from './ai.js';
 
 const $ = (s) => document.querySelector(s);
@@ -27,8 +27,9 @@ const state = {
   persons: [], match: { score: 0, parts: [] }, tilt: null, light: {},
   msg: null, holdSince: 0, lastAuto: 0, busy: false, duoSeenSince: 0, duoToastShown: false,
   shots: [], rvIndex: -1,
+  ring: false, gestureSince: 0, lastGesture: 0,
 };
-const settings = { autoSave: false, skeleton: true, sound: true, threshold: 82, apiKey: '' };
+const settings = { autoSave: false, skeleton: true, sound: true, gesture: true, threshold: 82, apiKey: '' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('photoapp.settings') || '{}')); } catch {}
 const saveSettings = () => { try { localStorage.setItem('photoapp.settings', JSON.stringify(settings)); } catch {} };
 
@@ -126,7 +127,11 @@ function ratioValue() {
   return landscape ? b / a : a / b; // 폭/높이
 }
 function layout() {
-  const vp = $('#viewport').getBoundingClientRect();
+  const el = $('#viewport'), cs = getComputedStyle(el);
+  const vp = {
+    width: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+    height: el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+  };
   const r = ratioValue();
   let w = vp.width, h = w / r;
   if (h > vp.height) { h = vp.height; w = h * r; }
@@ -176,7 +181,7 @@ async function requestMotion() {
     roll = roll == null ? r : roll + (r - roll) * 0.2;
     pitch += (p - pitch) * 0.2;
     // 폰을 거의 눕혔을 때는 수평 의미 없음
-    state.tilt = Math.abs(p) > 65 ? null : { roll, pitchDown: state.facing === 'environment' ? pitch : 0 };
+    state.tilt = Math.abs(p) > 65 ? null : { roll, pitch, pitchDown: state.facing === 'environment' ? pitch : 0 };
   });
 }
 
@@ -192,10 +197,8 @@ function ghost() {
 }
 
 function renderPoses() {
-  const sc = SCENES[state.scene];
-  const want = state.mode === 'duo' ? 2 : 1;
-  const rec = (state.mode === 'duo' ? sc.duo : sc.solo).concat(state.aiPoses || []);
-  const list = POSES.filter((p) => p.people === want)
+  const rec = recList().concat(state.aiPoses || []);
+  const list = POSES.filter((p) => poseCat(p) === state.mode)
     .sort((a, b) => (rec.includes(a.id) ? rec.indexOf(a.id) : 99) - (rec.includes(b.id) ? rec.indexOf(b.id) : 99));
   const strip = $('#poseStrip'); strip.innerHTML = '';
   const none = document.createElement('button');
@@ -211,6 +214,11 @@ function renderPoses() {
   }
   strip.append(none);
 }
+function recList() {
+  const sc = SCENES[state.scene];
+  if (state.mode === 'selfie') return state.persons.length >= 2 ? ['sf-duo', ...SELFIE_REC] : [...SELFIE_REC, 'sf-duo'];
+  return state.mode === 'duo' ? sc.duo : sc.solo;
+}
 function selectPose(id, manual) {
   state.poseId = id; if (manual) state.poseManual = true;
   const p = currentPose();
@@ -224,13 +232,32 @@ function setComp(c) {
   $('#btnComp').textContent = '위치 · ' + COMPS.find((x) => x[0] === c)[1];
 }
 function setMode(m) {
+  const prev = state.mode;
+  if (prev === m) return;
   state.mode = m;
   document.querySelectorAll('#modeToggle button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
-  const sc = SCENES[state.scene];
-  state.poseManual = false;
-  selectPose((m === 'duo' ? sc.duo : sc.solo)[0], false);
-  setComp(m === 'duo' ? 'center' : 'right');
+  state.poseManual = false; state.duoToastShown = false;
+  // 셀카 ↔ 일반 전환 시 카메라 방향도 같이
+  const want = m === 'selfie' ? 'user' : prev === 'selfie' ? 'environment' : state.facing;
+  if (want !== state.facing) {
+    state.facing = want;
+    if (state.stream) startCamera().catch(() => toast('카메라 전환 실패'));
+  }
+  $('#btnRing').hidden = m !== 'selfie';
+  if (m !== 'selfie' && state.ring) toggleRing(false);
+  selectPose(recList()[0], false);
+  setComp(m === 'solo' ? 'right' : 'center');
+  if (!state.presetManual) setPreset(m === 'selfie' ? 'soft' : SCENES[state.scene].preset);
+  renderGuide();
   if (m === 'duo') toast('둘이 찍기: 타이머 10초 + 폰 거치를 추천해요', { label: '타이머 10초', run: () => setTimer(10) }, 4000);
+  if (m === 'selfie') toast('🤳 셀카: 폰은 눈보다 살짝 위, 렌즈를 보고! 🖐 손을 머리 위로 들면 3초 뒤 찰칵', null, 4500);
+}
+function toggleRing(on = !state.ring) {
+  state.ring = on;
+  $('#app').classList.toggle('ring', on);
+  $('#btnRing').classList.toggle('on', on);
+  layout();
+  if (on) toast('💡 링라이트 ON — 화면 밝기를 최대로 올리면 더 환해요');
 }
 
 function renderPresets() {
@@ -260,11 +287,8 @@ function setScene(id, src = 'auto') {
   state.scene = id;
   if (src !== 'auto') state.sceneLockUntil = performance.now() + 60000;
   if (changed || src !== 'auto') {
-    if (!state.presetManual) setPreset(SCENES[id].preset);
-    if (!state.poseManual) {
-      const sc = SCENES[id];
-      state.poseId = (state.mode === 'duo' ? sc.duo : sc.solo)[0]; ghostCache = null;
-    }
+    if (!state.presetManual && state.mode !== 'selfie') setPreset(SCENES[id].preset);
+    if (!state.poseManual && state.mode !== 'selfie') { state.poseId = recList()[0]; ghostCache = null; }
     renderPoses();
     if (changed && src === 'auto') toast(`${SCENES[id].icon} ${SCENES[id].name} 감지 — 어울리는 포즈·색감으로 바꿨어요`);
   }
@@ -347,8 +371,17 @@ function drawGhost(g) {
   octx.globalAlpha = good ? 0.4 : 0.26;
   octx.drawImage(ghostCanvas, 0, 0);
   octx.restore();
-  // 발끝 기준선
   const pose = currentPose();
+  // 셀카: 눈 높이선
+  if (pose?.frame === 'selfie') {
+    const eyes = g.people.flatMap((p) => [p.ey1, p.ey2].filter(Boolean));
+    const ey = (eyes.reduce((acc, e) => acc + e[1], 0) / eyes.length) * h;
+    octx.setLineDash([6, 6]); octx.strokeStyle = 'rgba(255,213,74,0.8)'; octx.lineWidth = 1.5;
+    octx.beginPath(); octx.moveTo(w * 0.08, ey); octx.lineTo(w * 0.92, ey); octx.stroke(); octx.setLineDash([]);
+    octx.fillStyle = 'rgba(255,213,74,0.95)'; octx.font = '600 11px sans-serif'; octx.textAlign = 'left';
+    octx.fillText('눈 높이', w * 0.08, ey - 6);
+  }
+  // 발끝 기준선
   if (pose?.frame === 'full') {
     const feet = Math.max(...g.people.flatMap((p) => [p.la?.[1] || 0, p.ra?.[1] || 0])) * h + g.H * h * 0.03;
     octx.setLineDash([6, 6]); octx.strokeStyle = 'rgba(255,213,74,0.8)'; octx.lineWidth = 1.5;
@@ -370,7 +403,7 @@ function drawSkeletons() {
     }
     octx.fillStyle = '#fff';
     for (const k of Object.keys(p.raw)) {
-      if (p.vis[k] < 0.5) continue;
+      if (p.vis[k] < 0.5 || k.length === 3) continue; // 눈·귀 점은 생략
       octx.beginPath(); octx.arc(p.raw[k][0] * w, p.raw[k][1] * h, 3, 0, 7); octx.fill();
     }
   }
@@ -474,21 +507,41 @@ function loop(now) {
   if (now - lastMsg > 350) { lastMsg = now; updateCoach(now); }
   drawOverlay();
   autoShutter(now);
+  gestureShutter(now);
+}
+
+// 🖐 셀카: 손목이 머리 위로 올라가 0.5초 유지되면 3초 타이머 촬영
+function gestureShutter(now) {
+  if (state.mode !== 'selfie' || !settings.gesture || state.busy || !state.visionReady) { state.gestureSince = 0; return; }
+  const raised = state.persons.some((p) => {
+    const top = headTop(p);
+    return ['lw', 'rw'].some((k) => p.vis[k] > 0.6 && p.raw[k][1] < top && p.raw[k][1] > -0.05);
+  });
+  if (!raised) { state.gestureSince = 0; return; }
+  state.gestureSince ||= now;
+  if (now - state.gestureSince > 500 && now - state.lastGesture > 5000) {
+    state.lastGesture = now; state.gestureSince = 0;
+    toast('🖐 손 인식! 손 내리고 렌즈 보세요 — 3초 뒤 찰칵');
+    shoot({ countdownSec: 3 });
+  }
 }
 
 function updateCoach(now) {
   const pose = currentPose();
   const msg = state.visionReady
-    ? coachMessage({ persons: state.persons, pose, match: state.match, tilt: state.tilt, light: state.light, mode: state.mode, scoreGood: settings.threshold })
+    ? coachMessage({ persons: state.persons, pose, match: state.match, tilt: state.tilt, light: state.light, mode: state.mode, scoreGood: settings.threshold, aspect: stageW / stageH })
     : { level: 'info', text: 'AI 준비 중… 먼저 구도선에 맞춰 찍어도 돼요' };
   state.msg = msg;
   const el = $('#coach');
   el.className = msg.level;
   $('#coachText').textContent = msg.text;
   const act = $('#coachAction');
-  act.hidden = !(msg.action === 'timer' && state.timer !== 10);
-  act.textContent = '타이머 10초';
-  act.onclick = () => setTimer(10);
+  if (msg.action === 'ring') {
+    act.hidden = state.ring; act.textContent = '💡 링라이트'; act.onclick = () => toggleRing(true);
+  } else {
+    act.hidden = !(msg.action === 'timer' && state.timer !== 10);
+    act.textContent = '타이머 10초'; act.onclick = () => setTimer(10);
+  }
 
   // 점수 링
   const sc = pose ? Math.round(state.match.score) : 0;
@@ -497,11 +550,13 @@ function updateCoach(now) {
   $('#scoreLabel').textContent = pose && state.persons.length ? sc : '';
 
   // 사람 추가 감지 → 커플 포즈 제안
-  if (state.mode === 'solo' && state.persons.length >= 2) {
+  const twoInSelfie = state.mode === 'selfie' && state.poseId !== 'sf-duo';
+  if ((state.mode === 'solo' || twoInSelfie) && state.persons.length >= 2) {
     state.duoSeenSince ||= now;
     if (!state.duoToastShown && now - state.duoSeenSince > 1500) {
       state.duoToastShown = true;
-      toast('👥 두 명이 보여요! 커플 포즈 추천으로 바꿀까요?', { label: '둘이 모드', run: () => setMode('duo') }, 5000);
+      if (twoInSelfie) toast('👥 둘이 셀카네요! 둘이 셀카 가이드로 바꿀까요?', { label: '둘이 셀카', run: () => selectPose('sf-duo', true) }, 5000);
+      else toast('👥 두 명이 보여요! 커플 포즈 추천으로 바꿀까요?', { label: '둘이 모드', run: () => setMode('duo') }, 5000);
     }
   } else state.duoSeenSince = 0;
 }
@@ -538,11 +593,15 @@ async function countdown(sec) {
   el.hidden = true;
 }
 
-async function shoot({ viaAuto = false, burst = 1 } = {}) {
+async function shoot({ viaAuto = false, burst = 1, countdownSec } = {}) {
   if (state.busy || !video.videoWidth) return;
   state.busy = true;
   try {
-    if (state.timer && !viaAuto) await countdown(state.timer);
+    const cd = countdownSec ?? (viaAuto ? 0 : state.timer);
+    if (cd) await countdown(cd);
+    // 셀카 화면 플래시: 링라이트 켰거나 어두울 때 화면 전체를 조명으로
+    const ff = state.facing === 'user' && (state.ring || state.light.dark);
+    if (ff) { $('#frontFlash').classList.add('on'); await sleep(260); }
     const raws = [];
     for (let i = 0; i < burst; i++) {
       raws.push(grabFrame());
@@ -550,6 +609,7 @@ async function shoot({ viaAuto = false, burst = 1 } = {}) {
       const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
       if (burst > 1) await sleep(180);
     }
+    if (ff) $('#frontFlash').classList.remove('on');
     const backlit = !!state.light.backlit;
     await nextFrame();
     let last;
@@ -679,7 +739,7 @@ function renderGuide() {
     b.onclick = () => { setScene(id, 'manual'); toast(`${s.icon} ${s.name} 모드로 고정 (1분)`); };
     grid.append(b);
   }
-  const tips = [...(state.aiTips || []), ...SCENES[state.scene].tips];
+  const tips = [...(state.aiTips || []), ...(state.mode === 'selfie' ? SELFIE_TIPS : SCENES[state.scene].tips)];
   $('#tipList').innerHTML = tips.map((t) => `<li>${escapeHtml(t)}</li>`).join('');
 }
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -699,7 +759,7 @@ $('#btnAI').onclick = async () => {
     state.presetManual = false; state.poseManual = false;
     setScene(r.scene, 'ai');
     setPreset(r.preset);
-    const first = r.poses.find((id) => poseById(id).people === (state.mode === 'duo' ? 2 : 1));
+    const first = r.poses.find((id) => poseCat(poseById(id)) === state.mode);
     if (first) selectPose(first, false);
     if (r.composition && ['left', 'center', 'right'].includes(r.composition)) setComp(r.composition);
     $('#aiResult').innerHTML = `<div class="ai-box"><b>📍 ${escapeHtml(r.sceneLabel || SCENES[r.scene].name)}</b><br>추천 포즈: ${r.poses.map((id) => escapeHtml(poseById(id).name)).join(', ')}<br>색감: ${escapeHtml(PRESETS[r.preset].name)} · 구도: ${escapeHtml(COMPS.find((c) => c[0] === r.composition)?.[1] || '-')}</div>`;
@@ -743,6 +803,7 @@ $('#btnFlip').onclick = async () => {
   try { await startCamera(); } catch (e) { toast('카메라 전환 실패'); }
 };
 document.querySelectorAll('#modeToggle button').forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
+$('#btnRing').onclick = () => toggleRing();
 $('#btnGuide').onclick = () => { renderGuide(); $('#guide').hidden = false; };
 $('#sceneChip').onclick = () => { renderGuide(); $('#guide').hidden = false; };
 $('#btnSettings').onclick = () => { $('#settings').hidden = false; };
@@ -750,7 +811,7 @@ document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => ($('
 
 // 설정 바인딩
 const bindCheck = (sel, key) => { const el = $(sel); el.checked = settings[key]; el.onchange = () => { settings[key] = el.checked; saveSettings(); }; };
-bindCheck('#stAutoSave', 'autoSave'); bindCheck('#stSkeleton', 'skeleton'); bindCheck('#stSound', 'sound');
+bindCheck('#stAutoSave', 'autoSave'); bindCheck('#stSkeleton', 'skeleton'); bindCheck('#stSound', 'sound'); bindCheck('#stGesture', 'gesture');
 $('#stThreshold').value = settings.threshold;
 $('#stThreshold').onchange = (e) => { settings.threshold = Math.max(60, Math.min(95, +e.target.value || 82)); saveSettings(); };
 $('#stKey').value = settings.apiKey;

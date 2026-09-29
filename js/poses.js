@@ -148,6 +148,69 @@ export const POSES = [
   },
 ];
 
+// ---------- 셀카 (전면 카메라, 얼굴 중심) ----------
+// ey1/ey2 눈, ea1/ea2 귀 (화면 기준 좌→우)
+const FACE = {
+  h: [0, 0.065], ey1: [-0.022, 0.058], ey2: [0.022, 0.058], ea1: [-0.055, 0.068], ea2: [0.055, 0.068],
+  ls: [-0.12, 0.19], rs: [0.12, 0.19],
+};
+const F = (over) => ({ ...FACE, ...over });
+const SELFIE = [
+  {
+    id: 'sf-front', name: '정면 얼짱각', people: 1, crop: 0.42,
+    tip: '폰을 눈보다 한 뼘 위에서 살짝 내려다보게. 턱은 살짝 앞으로 내밀었다 아래로.',
+    people_pts: [F({})],
+  },
+  {
+    id: 'sf-tilt', name: '고개 기울이기', people: 1, crop: 0.42,
+    tip: '고개를 10° 정도만 살짝 기울이기. 어깨는 수평 유지하면 자연스러워요.',
+    people_pts: [F({ h: [0.012, 0.066], ey1: [-0.012, 0.063], ey2: [0.03, 0.054], ea1: [-0.044, 0.078], ea2: [0.063, 0.057] })],
+  },
+  {
+    id: 'sf-side', name: '3/4 옆얼굴', people: 1, crop: 0.42,
+    tip: '얼굴을 살짝 돌려 3/4 각도로. 가르마 쪽(더 자신 있는 쪽)을 카메라로!',
+    people_pts: [(({ ea2, ...rest }) => rest)(F({ h: [0.01, 0.065], ey1: [-0.004, 0.058], ey2: [0.034, 0.058], ea1: [-0.05, 0.068], ls: [-0.1, 0.2], rs: [0.13, 0.185] }))],
+  },
+  {
+    id: 'sf-v', name: '얼굴 옆 브이', people: 1, crop: 0.42,
+    tip: '손을 얼굴 옆에 붙이기. 손이 렌즈 쪽으로 나오면 커 보이니 얼굴과 같은 거리로.',
+    people_pts: [F({ re: [0.2, 0.3], rw: [0.1, 0.06] })],
+  },
+  {
+    id: 'sf-chin', name: '손으로 턱 받치기', people: 1, crop: 0.42,
+    tip: '손등이나 손끝으로 턱선을 살짝. 힘주지 말고 가볍게 대기만.',
+    people_pts: [F({ rw: [0.015, 0.14], re: [0.07, 0.34] })],
+  },
+  {
+    id: 'sf-far', name: '배경 같이 셀카', people: 1, crop: 0.62,
+    tip: '팔을 쭉 뻗고 폰을 살짝 비스듬히. 얼굴은 한쪽 ⅓에, 배경은 넓게.',
+    people_pts: [F({})],
+  },
+  {
+    id: 'sf-duo', name: '둘이 셀카', people: 2, crop: 0.5,
+    tip: '볼이 닿을 듯 붙고, 키 큰 사람이 살짝 뒤로. 폰은 두 사람 눈보다 위에서.',
+    people_pts: [
+      shift(F({ h: [0.01, 0.066], ey1: [-0.012, 0.062], ey2: [0.031, 0.056], ea1: [-0.044, 0.074] }), -0.075),
+      shift(F({ h: [-0.01, 0.066], ey1: [-0.031, 0.056], ey2: [0.012, 0.062], ea2: [0.044, 0.074] }), 0.075, -0.01),
+    ],
+  },
+].map((p) => ({ ...p, kind: 'selfie', frame: 'selfie' }));
+POSES.push(...SELFIE);
+
+// 포즈 분류: solo / duo / selfie
+export const poseCat = (p) => (p.kind === 'selfie' ? 'selfie' : p.people > 1 ? 'duo' : 'solo');
+export const SELFIE_REC = ['sf-front', 'sf-tilt', 'sf-side', 'sf-v', 'sf-chin', 'sf-far'];
+export const SELFIE_TIPS = [
+  '📱 폰은 눈보다 한 뼘 위, 살짝 내려다보게 — 얼굴이 갸름해져요',
+  '💪 팔을 쭉 뻗기 — 너무 가까우면 코·이마가 커 보여요 (광각 왜곡)',
+  '🪟 창문·조명을 마주 보기 — 빛을 등지면 얼굴이 어두워요',
+  '🙂 턱을 살짝 앞으로 내밀었다 아래로 — 이중턱 방지',
+  '↩️ 얼굴을 살짝 돌려 3/4 각도, 자신 있는 쪽을 카메라로',
+  '👀 찍는 순간 화면 말고 렌즈(위쪽 카메라 구멍)를 보기',
+  '🖐 손을 머리 위로 들면 3초 뒤 자동 촬영 — 셔터 누르다 흔들릴 일 없음',
+  '💡 어두우면 링라이트 켜기 — 화면이 조명이 되고, 찍을 때 화면 플래시',
+];
+
 export const poseById = (id) => POSES.find((p) => p.id === id);
 
 // 뼈대 연결
@@ -158,7 +221,8 @@ export const LIMBS = [
 
 // 포즈 썸네일 SVG
 export function poseSVG(pose, size = 56) {
-  const all = pose.people_pts.flatMap((pts) => Object.values(pts));
+  const bust = (pts) => (pts.lh ? [] : [[pts.ls[0], pts.ls[1] + 0.12], [pts.rs[0], pts.rs[1] + 0.12]]);
+  const all = pose.people_pts.flatMap((pts) => [...Object.values(pts), ...bust(pts)]);
   const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
   const minX = Math.min(...xs) - 0.1, maxX = Math.max(...xs) + 0.1;
   const minY = Math.min(...ys) - 0.1, maxY = Math.max(...ys) + 0.06;
@@ -170,7 +234,7 @@ export function poseSVG(pose, size = 56) {
       ? `<line x1="${pts[a][0]}" y1="${pts[a][1]}" x2="${pts[b][0]}" y2="${pts[b][1]}"/>` : '';
     const torso = ['ls', 'rs', 'rh', 'lh'].every((k) => pts[k])
       ? `<polygon points="${['ls', 'rs', 'rh', 'lh'].map((k) => pts[k].join(',')).join(' ')}"/>`
-      : `<line x1="${pts.ls[0]}" y1="${pts.ls[1]}" x2="${pts.rs[0]}" y2="${pts.rs[1]}"/>`;
+      : `<polygon points="${[pts.ls, pts.rs, ...bust(pts).reverse()].map((p) => p.join(',')).join(' ')}"/>`;
     body += torso + LIMBS.map(([a, b]) => line(a, b)).join('') +
       `<circle cx="${pts.h[0]}" cy="${pts.h[1]}" r="0.065"/>`;
   }

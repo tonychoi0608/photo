@@ -4,7 +4,7 @@ import { SCENES } from './scenes.js';
 import { PRESETS } from './color.js';
 
 export async function askPhotographer(apiKey, dataUrl, { mode, people }) {
-  const poseList = POSES.map((p) => `${p.id}(${p.name}, ${p.people}인, ${p.frame === 'full' ? '전신' : '상반신'})`).join(', ');
+  const poseList = POSES.map((p) => `${p.id}(${p.name}, ${p.people}인, ${{ full: '전신', half: '상반신', selfie: '셀카' }[p.frame]})`).join(', ');
   const developer = `너는 인물 사진 전문 포토그래퍼다. 사진 초보인 남자친구가 여자친구를 찍으려 한다.
 카메라 프리뷰 한 장을 보고 상황을 판단해 가장 예쁘게 나올 촬영 방법을 알려줘.
 Return valid JSON only. No markdown. 스키마:
@@ -14,7 +14,7 @@ Return valid JSON only. No markdown. 스키마:
  "composition": "left"|"center"|"right",
  "preset": one of [${Object.keys(PRESETS).filter((k) => k !== 'original').join(',')}],
  "tips": ["구체적인 한국어 촬영 팁 3개, 각 40자 이내. 서는 위치/빛 방향/카메라 높이/배경 정리 등"]}`;
-  const user = `현재 모드: ${mode === 'duo' ? '둘이 찍기(커플)' : '혼자 찍기'}, 감지된 인원: ${people}명.`;
+  const user = `현재 모드: ${{ duo: '둘이 찍기(커플)', selfie: '셀카(전면 카메라, 본인이 직접 촬영). 셀카 포즈(sf-)만 추천' }[mode] || '혼자 찍기(남자친구가 촬영)'}, 감지된 인원: ${people}명.`;
 
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',

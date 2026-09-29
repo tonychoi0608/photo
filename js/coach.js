@@ -1,7 +1,7 @@
 // 구도 코칭: 실루엣 배치, 포즈 일치도 점수, 실시간 안내 메시지
 import { MAP } from './vision.js';
 
-const PAIRS = [['ls', 'rs', MAP.s], ['le', 're', MAP.e], ['lw', 'rw', MAP.w], ['lh', 'rh', MAP.hp], ['lk', 'rk', MAP.k], ['la', 'ra', MAP.a]];
+const PAIRS = [['ey1', 'ey2', [2, 5]], ['ea1', 'ea2', [7, 8]], ['ls', 'rs', MAP.s], ['le', 're', MAP.e], ['lw', 'rw', MAP.w], ['lh', 'rh', MAP.hp], ['lk', 'rk', MAP.k], ['la', 'ra', MAP.a]];
 const COMP_X = { left: 1 / 3, center: 0.5, right: 2 / 3 };
 
 // 포즈 → 화면 좌표(u,v: 0~1) 실루엣 배치
@@ -11,7 +11,13 @@ export function placeGhost(pose, compPos, aspect) {
   const minY = Math.min(...all.map((p) => p[1])), maxY = Math.max(...all.map((p) => p[1]));
   const minX = Math.min(...all.map((p) => p[0])), maxX = Math.max(...all.map((p) => p[0]));
   let H, v0;
-  if (pose.frame === 'half') {
+  if (pose.frame === 'selfie') {
+    // 얼굴 중심: 눈이 위쪽 ⅓선 근처에 오게
+    H = 1 / (pose.crop || 0.42);
+    if (aspect > 1) H *= 0.85;
+    const hy = Math.min(...pose.people_pts.map((p) => p.h[1]));
+    v0 = 0.31 - hy * H;
+  } else if (pose.frame === 'half') {
     H = 0.9 / (pose.crop || 0.56);
     v0 = 0.1 - Math.min(0, minY) * H;
   } else {
@@ -100,7 +106,43 @@ export function matchScore(persons, placed, aspect) {
 }
 
 // 우선순위 기반 안내 메시지
-export function coachMessage({ persons, pose, match, tilt, light, mode, scoreGood }) {
+export const headTop = (p) => p.nose.v - 0.8 * Math.max(0.01, (p.raw.ls[1] + p.raw.rs[1]) / 2 - p.nose.v);
+
+function selfieMessage({ persons, match, tilt, light, scoreGood, aspect, pose }) {
+  if (!persons.length) return { level: 'info', text: '얼굴을 화면 안에 — 눈이 위쪽 ⅓선에 오게 들어주세요' };
+  const d = (a, b) => Math.hypot((a[0] - b[0]) * aspect, a[1] - b[1]);
+  const faceW = (p) => (p.vis.ea1 > 0.5 && p.vis.ea2 > 0.5 ? d(p.raw.ea1, p.raw.ea2)
+    : p.vis.ey1 > 0.5 && p.vis.ey2 > 0.5 ? d(p.raw.ey1, p.raw.ey2) * 2.4 : 0);
+  const p = persons.reduce((a, b) => (faceW(b) > faceW(a) ? b : a));
+  const fw = faceW(p);
+  if (fw > 0.4) return { level: 'warn', text: '💪 너무 가까워요! 팔을 쭉 뻗어요 — 가까우면 코·얼굴이 커 보여요', arrow: 'back' };
+  if (p.nose.vis > 0.5 && headTop(p) < -0.01) return { level: 'warn', text: '머리가 잘려요 — 폰을 살짝 올리거나 팔을 더 뻗어요', arrow: 'up' };
+  if (tilt && tilt.pitch > 6) return { level: 'warn', text: '📱 아래에서 올려 찍고 있어요 — 폰을 눈보다 살짝 위로 올려 내려다보게 (턱선 갸름)', arrow: 'up' };
+  if (tilt && tilt.pitch < -40) return { level: 'warn', text: '너무 위에서 찍어요 — 폰을 조금만 내려요', arrow: 'down' };
+  const part = match.parts?.[0];
+  if (pose && part && part.keys >= 5) {
+    if (part.scale > 0.22) return { level: 'warn', text: '팔을 조금 더 뻗어요 (얼굴이 실루엣보다 커요)', arrow: 'back' };
+    if (part.scale < -0.25) return { level: 'warn', text: '폰을 조금 더 가까이 (얼굴이 실루엣보다 작아요)', arrow: 'fwd' };
+    if (Math.abs(part.dx) > 0.06) {
+      const dir = part.dx > 0 ? 'right' : 'left';
+      return { level: 'warn', text: `폰을 ${dir === 'right' ? '오른쪽 →' : '← 왼쪽'}으로 살짝 옮겨요`, arrow: dir };
+    }
+    if (Math.abs(part.dy) > 0.06) {
+      return part.dy > 0
+        ? { level: 'warn', text: '얼굴이 너무 아래예요 — 폰을 살짝 내려서 눈을 "눈 높이" 선에', arrow: 'down' }
+        : { level: 'warn', text: '얼굴이 너무 위예요 — 폰을 살짝 올려요', arrow: 'up' };
+    }
+  }
+  if (tilt && Math.abs(tilt.roll) > 8) return { level: 'warn', text: '폰이 많이 기울었어요 — 폰은 수평, 기울이는 건 고개로!', arrow: 'level' };
+  if (light?.dark) return { level: 'info', text: '🌙 어두워요 — 💡 링라이트를 켜면 얼굴이 환해져요', action: 'ring' };
+  if (light?.backlit) return { level: 'info', text: '🪟 빛을 등지고 있어요 — 창문·조명 쪽을 바라보면 피부가 환해져요' };
+  if (match.score >= scoreGood) return { level: 'good', text: '✨ 좋아요! 화면 말고 렌즈(위쪽 카메라)를 보고 찰칵 · 🖐 손 들면 3초 타이머' };
+  if (pose) return { level: 'info', text: `${pose.name}: ${pose.tip}` };
+  return { level: 'good', text: '좋아요! 렌즈를 보고 찍으세요 · 🖐 손을 머리 위로 들면 3초 뒤 찰칵' };
+}
+
+export function coachMessage({ persons, pose, match, tilt, light, mode, scoreGood, aspect = 0.75 }) {
+  if (mode === 'selfie') return selfieMessage({ persons, match, tilt, light, scoreGood, aspect, pose });
   const couple = mode === 'duo';
   if (!persons.length) {
     return { level: 'info', text: couple ? '두 사람 모두 화면 안으로 들어와 주세요' : '인물을 화면에 담아주세요 — 실루엣 위치에 세워요' };

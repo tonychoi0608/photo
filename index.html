@@ -33,6 +33,7 @@
         <button id="sceneChip">📷 상황 분석 중…</button>
         <div id="stageBottom">
           <button id="btnComp" class="pill">위치 · 오른쪽⅓</button>
+          <button id="btnRing" class="pill" hidden>💡 링라이트</button>
           <div id="zoomChips"></div>
         </div>
         <div id="countdown" hidden></div>
@@ -48,6 +49,7 @@
         <div id="modeToggle" class="seg">
           <button data-mode="solo" class="on">👤 혼자</button>
           <button data-mode="duo">👥 둘이</button>
+          <button data-mode="selfie">🤳 셀카</button>
         </div>
         <div id="presetStrip" class="hscroll"></div>
       </div>
@@ -73,6 +75,7 @@
           <li><b>🧭 실시간 코칭</b> "한 걸음 뒤로", "발목 잘림", "수평 기울어짐"을 바로 알려줘요</li>
           <li><b>🏖️ 상황 인식</b> 카페·바다·노을·야경을 알아채고 어울리는 포즈와 색감을 골라요</li>
           <li><b>🎨 자동 색보정</b> 화이트밸런스·노출·역광·피부톤까지 한 번에</li>
+          <li><b>🤳 셀카 모드</b> 얼짱각도·팔 길이·눈 높이 코칭, 손 들면 찰칵, 링라이트</li>
           <li><b>🤖 AI 자동촬영</b> 포즈가 실루엣과 딱 맞는 순간 알아서 찰칵</li>
         </ul>
         <button id="btnStart" class="primary">카메라 시작하기</button>
@@ -136,6 +139,7 @@
         <label class="row"><span>촬영 즉시 자동 저장<small>안드로이드·PC: 다운로드 폴더(갤러리에 표시) · 아이폰은 저장 버튼 필요</small></span><input type="checkbox" id="stAutoSave" /></label>
         <label class="row"><span>인식된 뼈대 표시</span><input type="checkbox" id="stSkeleton" /></label>
         <label class="row"><span>셔터음</span><input type="checkbox" id="stSound" /></label>
+        <label class="row"><span>🖐 손 들어 촬영 (셀카)<small>손을 머리 위로 들면 3초 뒤 자동 촬영</small></span><input type="checkbox" id="stGesture" /></label>
         <label class="row"><span>자동촬영 기준 점수<small>높을수록 더 정확히 맞아야 찍혀요</small></span><input type="number" id="stThreshold" min="60" max="95" step="5" /></label>
         <h3>🤖 GPT-5.4 포토그래퍼 (선택)</h3>
         <p class="hint">OpenAI API 키를 넣으면 가이드에서 “AI 포토그래퍼 분석”을 쓸 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI로만 전송돼요. 개인용으로만 쓰세요.</p>
@@ -143,6 +147,7 @@
       </div>
     </div>
 
+    <div id="frontFlash"></div>
     <div id="toast" hidden></div>
     <a id="dl" hidden></a>
   </div>
