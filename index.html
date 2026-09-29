@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>여친 인생샷 카메라</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 상단 바 -->
+    <header id="topbar">
+      <button class="tb" id="btnRatio" title="화면 비율"><b>3:4</b><small>비율</small></button>
+      <button class="tb" id="btnGrid" title="구도선"><b>⅓</b><small>구도선</small></button>
+      <button class="tb" id="btnTimer" title="타이머"><b>끔</b><small>타이머</small></button>
+      <button class="tb" id="btnAuto" title="AI 자동촬영"><b>OFF</b><small>자동촬영</small></button>
+      <button class="tb" id="btnGuide" title="상황 가이드"><b>📖</b><small>가이드</small></button>
+      <button class="tb" id="btnSettings" title="설정"><b>⚙️</b><small>설정</small></button>
+    </header>
+
+    <!-- 뷰파인더 -->
+    <main id="viewport">
+      <div id="stage">
+        <video id="video" playsinline muted autoplay></video>
+        <canvas id="overlay"></canvas>
+        <div id="coach" class="info"><span id="coachText">카메라를 시작해 주세요</span><button id="coachAction" hidden></button></div>
+        <button id="sceneChip">📷 상황 분석 중…</button>
+        <div id="stageBottom">
+          <button id="btnComp" class="pill">위치 · 오른쪽⅓</button>
+          <div id="zoomChips"></div>
+        </div>
+        <div id="countdown" hidden></div>
+        <div id="flash"></div>
+        <div id="loading" hidden></div>
+      </div>
+    </main>
+
+    <!-- 하단 컨트롤 -->
+    <section id="controls">
+      <div id="poseStrip" class="hscroll"></div>
+      <div id="row2">
+        <div id="modeToggle" class="seg">
+          <button data-mode="solo" class="on">👤 혼자</button>
+          <button data-mode="duo">👥 둘이</button>
+        </div>
+        <div id="presetStrip" class="hscroll"></div>
+      </div>
+      <div id="bottombar">
+        <button id="btnGallery" title="찍은 사진"><img id="galleryThumb" alt="" /></button>
+        <button id="shutter" title="촬영 (길게 누르면 연사)">
+          <svg viewBox="0 0 100 100" id="ring"><circle cx="50" cy="50" r="46" class="track" /><circle cx="50" cy="50" r="46" class="meter" id="ringMeter" /></svg>
+          <span id="shutterInner"></span>
+          <span id="scoreLabel"></span>
+        </button>
+        <button id="btnFlip" title="카메라 전환">🔄</button>
+      </div>
+    </section>
+
+    <!-- 시작 화면 -->
+    <div id="start" class="overlay">
+      <div class="start-card">
+        <div class="logo">📸</div>
+        <h1>여친 인생샷 카메라</h1>
+        <p class="sub">사진 몰라도 괜찮아요. AI가 구도·포즈·색감을 다 잡아줄게요.</p>
+        <ul class="feat">
+          <li><b>👻 실루엣 가이드</b> 추천 포즈를 화면에 그림자로 띄워요. 여친을 그 안에 맞추기만 하면 끝</li>
+          <li><b>🧭 실시간 코칭</b> "한 걸음 뒤로", "발목 잘림", "수평 기울어짐"을 바로 알려줘요</li>
+          <li><b>🏖️ 상황 인식</b> 카페·바다·노을·야경을 알아채고 어울리는 포즈와 색감을 골라요</li>
+          <li><b>🎨 자동 색보정</b> 화이트밸런스·노출·역광·피부톤까지 한 번에</li>
+          <li><b>🤖 AI 자동촬영</b> 포즈가 실루엣과 딱 맞는 순간 알아서 찰칵</li>
+        </ul>
+        <button id="btnStart" class="primary">카메라 시작하기</button>
+        <p class="fine">사진과 영상은 기기 밖으로 나가지 않아요 (GPT 분석을 켠 경우 제외).</p>
+      </div>
+    </div>
+
+    <!-- 촬영 결과 -->
+    <div id="review" class="sheet" hidden>
+      <div class="sheet-head">
+        <button id="rvClose" class="ghost">✕ 다시 찍기</button>
+        <span id="rvCount"></span>
+        <button id="rvShare" class="ghost">공유</button>
+      </div>
+      <div id="rvImgWrap">
+        <img id="rvImg" alt="찍은 사진" />
+        <button id="rvPrev" class="nav">‹</button>
+        <button id="rvNext" class="nav">›</button>
+        <div id="rvBadge">보정됨</div>
+      </div>
+      <div id="rvPresets" class="hscroll"></div>
+      <div class="rv-row">
+        <label class="slider">보정 강도 <input id="rvStrength" type="range" min="0" max="150" value="100" /></label>
+        <button id="rvCompare" class="pill">누르고 있으면 원본</button>
+      </div>
+      <button id="rvSave" class="primary">⬇︎ 사진첩에 저장</button>
+    </div>
+
+    <!-- 상황 가이드 -->
+    <div id="guide" class="sheet" hidden>
+      <div class="sheet-head">
+        <b>상황별 가이드</b>
+        <button class="ghost" data-close="guide">닫기</button>
+      </div>
+      <div class="guide-body">
+        <p class="hint">지금 상황이 틀렸다면 직접 골라주세요.</p>
+        <div id="sceneGrid"></div>
+        <button id="btnAI" class="primary">🤖 AI 포토그래퍼에게 지금 화면 분석받기</button>
+        <div id="aiResult"></div>
+        <h3>이 상황 촬영 팁</h3>
+        <ul id="tipList"></ul>
+        <h3>기본 공식 (이것만 알아도 80점)</h3>
+        <ul class="rules">
+          <li>👣 전신은 <b>발끝을 화면 맨 아래</b>에, 폰은 <b>허리~무릎 높이</b>에서 살짝 위로</li>
+          <li>✂️ <b>관절(무릎·발목·손목·팔꿈치)에서 자르지 않기</b></li>
+          <li>📐 인물은 가운데보다 <b>⅓선 위</b>에, 바라보는 방향 쪽을 넓게</li>
+          <li>🔭 인물은 <b>1×~2× 줌</b>으로. 0.5× 광각은 가장자리 인물이 왜곡돼요</li>
+          <li>☀️ 해를 등지게 하면 머리카락에 빛 테두리, 얼굴은 보정으로 밝게</li>
+          <li>🎞️ 걷기·머리 넘기기·점프는 셔터를 <b>길게 눌러 연사</b></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 설정 -->
+    <div id="settings" class="sheet" hidden>
+      <div class="sheet-head">
+        <b>설정</b>
+        <button class="ghost" data-close="settings">닫기</button>
+      </div>
+      <div class="guide-body">
+        <label class="row"><span>촬영 즉시 자동 저장<small>안드로이드·PC: 다운로드 폴더(갤러리에 표시) · 아이폰은 저장 버튼 필요</small></span><input type="checkbox" id="stAutoSave" /></label>
+        <label class="row"><span>인식된 뼈대 표시</span><input type="checkbox" id="stSkeleton" /></label>
+        <label class="row"><span>셔터음</span><input type="checkbox" id="stSound" /></label>
+        <label class="row"><span>자동촬영 기준 점수<small>높을수록 더 정확히 맞아야 찍혀요</small></span><input type="number" id="stThreshold" min="60" max="95" step="5" /></label>
+        <h3>🤖 GPT-5.4 포토그래퍼 (선택)</h3>
+        <p class="hint">OpenAI API 키를 넣으면 가이드에서 “AI 포토그래퍼 분석”을 쓸 수 있어요. 키는 이 브라우저에만 저장되고 OpenAI로만 전송돼요. 개인용으로만 쓰세요.</p>
+        <input id="stKey" type="password" placeholder="sk-..." autocomplete="off" />
+      </div>
+    </div>
+
+    <div id="toast" hidden></div>
+    <a id="dl" hidden></a>
+  </div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

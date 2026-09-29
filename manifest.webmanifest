@@ -1,0 +1,12 @@
+{
+  "name": "여친 인생샷 카메라",
+  "short_name": "인생샷",
+  "description": "AI가 구도·포즈·색보정을 잡아주는 인물 카메라",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
